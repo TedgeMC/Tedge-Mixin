@@ -143,5 +143,14 @@ public class MixinState {
 
             classNode.methods.add(method);
         }
+
+        for (var field : node.fields) {
+            if (field.name.contains("<"))
+                continue;
+
+            field.name = prefix + field.name;
+
+            classNode.fields.add(field);
+        }
     }
 }
