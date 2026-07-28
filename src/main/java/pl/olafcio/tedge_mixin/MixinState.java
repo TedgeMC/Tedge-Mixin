@@ -114,6 +114,20 @@ public class MixinState {
     }
 
     protected void transform(String className, ClassNode classNode) {
-        new Transformer(config, node, classNode, this.className, className).transform();
+        try {
+            new Transformer(config, node, classNode, this.className, className).transform();
+        } catch (Exception e) {
+            IO.println("[TedgeMixin] ---------------------");
+            IO.println("[TedgeMixin] ---------------------");
+            IO.println("[TedgeMixin] !! INJECTION ERROR !!");
+            IO.println("[TedgeMixin] ---------------------");
+            IO.println("[TedgeMixin] ---------------------");
+            IO.println();
+
+            e.printStackTrace();
+
+            IO.println();
+            System.exit(1);
+        }
     }
 }
