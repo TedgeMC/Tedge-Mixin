@@ -1,11 +1,10 @@
 package pl.olafcio.tedge_mixin.jvm;
 
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.InvokeDynamicInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.*;
 import pl.olafcio.tedge_mixin.MixinTransformationError;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
+
+import java.util.ArrayList;
 
 public class Transformer {
     private final MixinConfig config;
@@ -25,7 +24,24 @@ public class Transformer {
     }
 
     public void transform() {
-        String prefix = config.tedge().prefix();
+        var prefix = config.tedge().prefix();
+        var shadowed = new ArrayList<String>();
+
+        for (FieldNode field : mixinNode.fields) {
+            if (field.name.contains("<")) {
+                continue;
+            }
+
+            if (field.visibleAnnotations != null && field.visibleAnnotations.stream().anyMatch(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/Shadow;"))) {
+                shadowed.add(field.name);
+                continue;
+            }
+
+            field.name = prefix + field.name;
+            field.desc = transformType(field.desc);
+
+            runtimeNode.fields.add(field);
+        }
 
         for (var method : mixinNode.methods) {
             if (method.name.contains("<"))
@@ -36,7 +52,9 @@ public class Transformer {
             for (var ins : method.instructions) {
                 if (ins instanceof FieldInsnNode fin) {
                     if (fin.owner.equals(this.mixinClassName)) {
-                        fin.name = prefix + fin.name;
+                        if (!shadowed.contains(fin.name))
+                            fin.name = prefix + fin.name;
+
                         fin.owner = runtimeClassName;
                         fin.desc = transformType(fin.desc);
                     }
@@ -56,16 +74,6 @@ public class Transformer {
             }
 
             runtimeNode.methods.add(method);
-        }
-
-        for (var field : mixinNode.fields) {
-            if (field.name.contains("<"))
-                continue;
-
-            field.name = prefix + field.name;
-            field.desc = transformType(field.desc);
-
-            runtimeNode.fields.add(field);
         }
     }
 
