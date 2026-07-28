@@ -1,12 +1,10 @@
 package pl.olafcio.tedge_mixin;
 
 import org.objectweb.asm.*;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.*;
 import pl.olafcio.tedge_mixin.annotation_state.Mixin;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
+import pl.olafcio.tedge_mixin.jvm.TypeTransformer;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
@@ -129,6 +127,7 @@ public class MixinState {
                     if (fin.owner.equals(this.className)) {
                         fin.name = prefix + fin.name;
                         fin.owner = className;
+                        fin.desc = transformType(className, fin.desc);
                     }
                 } else if (ins instanceof MethodInsnNode min) {
                     if (min.owner.equals(this.className)) {
@@ -137,6 +136,7 @@ public class MixinState {
 
                         min.name = prefix + min.name;
                         min.owner = className;
+                        min.desc = transformType(className, min.desc);
                     }
                 }
             }
@@ -149,8 +149,18 @@ public class MixinState {
                 continue;
 
             field.name = prefix + field.name;
+            field.desc = transformType(className, field.desc);
 
             classNode.fields.add(field);
         }
+    }
+
+    protected String transformType(String runtimeClassName, String jvmType) {
+        return new TypeTransformer(jvmType) {
+            @Override
+            protected String transformLiteral(String literal) {
+                return literal.equals(className) ? runtimeClassName : literal;
+            }
+        }.get();
     }
 }
