@@ -138,6 +138,9 @@ public class MixinState {
                         min.owner = className;
                         min.desc = transformType(className, min.desc);
                     }
+                } else if (ins instanceof InvokeDynamicInsnNode idn) {
+//                    IO.println("@@ INVOKEDYNAMIC :: [bsm(" + idn.bsm.getOwner() + ") " + idn.bsm.getName() + "] " + idn.name + " <<" + idn.desc + ">>");
+                    idn.desc = transformType(className, idn.desc);
                 }
             }
 
