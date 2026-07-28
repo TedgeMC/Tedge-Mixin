@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'pl.olafcio.tedge_mixin'
-version = '1.0-SNAPSHOT'
+version = project.version
 
 repositories {
     mavenCentral()
