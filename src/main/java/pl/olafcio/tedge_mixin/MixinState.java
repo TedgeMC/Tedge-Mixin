@@ -4,7 +4,7 @@ import org.objectweb.asm.*;
 import org.objectweb.asm.tree.*;
 import pl.olafcio.tedge_mixin.annotation_state.Mixin;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
-import pl.olafcio.tedge_mixin.jvm.TypeTransformer;
+import pl.olafcio.tedge_mixin.jvm.Transformer;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
@@ -114,56 +114,6 @@ public class MixinState {
     }
 
     protected void transform(String className, ClassNode classNode) {
-        String prefix = config.tedge().prefix();
-
-        for (var method : node.methods) {
-            if (method.name.contains("<"))
-                continue;
-
-            method.name = prefix + method.name;
-
-            for (var ins : method.instructions) {
-                if (ins instanceof FieldInsnNode fin) {
-                    if (fin.owner.equals(this.className)) {
-                        fin.name = prefix + fin.name;
-                        fin.owner = className;
-                        fin.desc = transformType(className, fin.desc);
-                    }
-                } else if (ins instanceof MethodInsnNode min) {
-                    if (min.owner.equals(this.className)) {
-                        if (min.name.contains("<"))
-                            throw new MixinTransformationError("Illegal method invocation in mixin: '%s'".formatted(min.name));
-
-                        min.name = prefix + min.name;
-                        min.owner = className;
-                        min.desc = transformType(className, min.desc);
-                    }
-                } else if (ins instanceof InvokeDynamicInsnNode idn) {
-//                    IO.println("@@ INVOKEDYNAMIC :: [bsm(" + idn.bsm.getOwner() + ") " + idn.bsm.getName() + "] " + idn.name + " <<" + idn.desc + ">>");
-                    idn.desc = transformType(className, idn.desc);
-                }
-            }
-
-            classNode.methods.add(method);
-        }
-
-        for (var field : node.fields) {
-            if (field.name.contains("<"))
-                continue;
-
-            field.name = prefix + field.name;
-            field.desc = transformType(className, field.desc);
-
-            classNode.fields.add(field);
-        }
-    }
-
-    protected String transformType(String runtimeClassName, String jvmType) {
-        return new TypeTransformer(jvmType) {
-            @Override
-            protected String transformLiteral(String literal) {
-                return literal.equals(className) ? runtimeClassName : literal;
-            }
-        }.get();
+        new Transformer(config, node, classNode, this.className, className).transform();
     }
 }
