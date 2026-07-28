@@ -1,3 +1,8 @@
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
+
 plugins {
     id 'java'
 }
@@ -20,4 +25,62 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+tasks.register("install") {
+    dependsOn build
+    doLast {
+        var tedgeMixin = jar.archiveFile.get().getAsFile()
+
+        File tedgeLoader
+
+        try {
+            var tedgeLoaderDir = Path.of("${System.getenv("USERPROFILE")}/.gradle/caches/Tedge-ML/wrapper/")
+            tedgeLoader = Files.list(tedgeLoaderDir).findAny().orElseThrow().toFile()
+        } catch (ignored) {
+            println "Loader installation not found"
+            return;
+        }
+
+        var bos = new ByteArrayOutputStream()
+        var zos = new ZipOutputStream(bos)
+
+        try (var src = new ZipFile(tedgeLoader)) {
+            try (var src2 = new ZipFile(tedgeMixin)) {
+                var entries = src.entries()
+                var entries2 = src2.entries()
+
+                for (var entry : entries2) {
+                    if (!entry.getName().contains("META-INF")) {
+                        zos.putNextEntry(entry)
+
+                        try (var stream = src2.getInputStream(entry)) {
+                            zos.write(stream.readAllBytes())
+                        }
+                    }
+                }
+
+                for (var entry : entries) {
+                    try {
+                        zos.putNextEntry(entry)
+                    } catch (ignored) {
+                        continue
+                    }
+
+                    try (var stream = src.getInputStream(entry)) {
+                        zos.write(stream.readAllBytes())
+                    }
+                }
+            }
+        }
+
+
+        zos.close()
+
+        Files.write(tedgeLoader.toPath(), bos.toByteArray())
+
+        bos.close()
+
+        println "Merged TedgeMixin build into loader installation"
+    }
 }
