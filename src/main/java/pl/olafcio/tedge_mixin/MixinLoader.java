@@ -35,7 +35,7 @@ public class MixinLoader {
             if (name.endsWith(".class")) {
                 if (name.startsWith(config._package().replace(".", "/"))) {
                     try (var stream = file.getInputStream(nxt)) {
-                        addInjection(config, stream.readAllBytes());
+                        addInjection(name.substring(0, name.length() - 6).replace(".", "/"), config, stream.readAllBytes());
                     } catch (IOException e) {
                         throw new RuntimeException("Failed to read mixin '%s'".formatted(name), e);
                     }
@@ -44,13 +44,13 @@ public class MixinLoader {
         } while (entries.hasMoreElements());
     }
 
-    private void addInjection(MixinConfig config, byte[] data) {
+    private void addInjection(String className, MixinConfig config, byte[] data) {
         var klass = new ClassReader(data);
         var node = new ClassNode(ASM9);
 
         klass.accept(node, 0);
 
-        var state = new MixinState(node);
+        var state = new MixinState(className, node, config);
         state.init();
         state.register(inst);
     }

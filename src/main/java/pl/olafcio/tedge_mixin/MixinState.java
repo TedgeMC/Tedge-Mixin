@@ -1,12 +1,12 @@
 package pl.olafcio.tedge_mixin;
 
-import org.objectweb.asm.AnnotationVisitor;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Type;
+import org.objectweb.asm.*;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import pl.olafcio.tedge_mixin.annotation_state.Mixin;
+import pl.olafcio.tedge_mixin.config.MixinConfig;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
@@ -16,10 +16,14 @@ import java.util.ArrayList;
 import static org.objectweb.asm.Opcodes.ASM9;
 
 public class MixinState {
+    protected final String className;
     protected final ClassNode node;
+    protected final MixinConfig config;
 
-    public MixinState(ClassNode node) {
+    public MixinState(String className, ClassNode node, MixinConfig config) {
+        this.className = className;
         this.node = node;
+        this.config = config;
     }
 
     protected Mixin mixin;
@@ -111,6 +115,33 @@ public class MixinState {
         inst.addTransformer(transformer[0]);
     }
 
-    protected void transform(String className, ClassNode node) {
+    protected void transform(String className, ClassNode classNode) {
+        String prefix = config.tedge().prefix();
+
+        for (var method : node.methods) {
+            if (method.name.contains("<"))
+                continue;
+
+            method.name = prefix + method.name;
+
+            for (var ins : method.instructions) {
+                if (ins instanceof FieldInsnNode fin) {
+                    if (fin.owner.equals(this.className)) {
+                        fin.name = prefix + fin.name;
+                        fin.owner = className;
+                    }
+                } else if (ins instanceof MethodInsnNode min) {
+                    if (min.owner.equals(this.className)) {
+                        if (min.name.contains("<"))
+                            throw new MixinTransformationError("Illegal method invocation in mixin: '%s'".formatted(min.name));
+
+                        min.name = prefix + min.name;
+                        min.owner = className;
+                    }
+                }
+            }
+
+            classNode.methods.add(method);
+        }
     }
 }
