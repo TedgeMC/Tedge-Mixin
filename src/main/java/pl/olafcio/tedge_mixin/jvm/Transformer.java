@@ -63,6 +63,20 @@ public class Transformer {
                     throw new MixinIssue("Non-static shadow methods must be abstract");
 
                 shadowedMethods.add(method.name + method.desc);
+
+                var realMethod = runtimeNode.methods.stream().filter(m -> m.name.equals(method.name) &&
+                                                                                      m.desc.equals(method.desc))
+                                                             .findAny()
+                                                             .orElseThrow(() -> new MixinIssue("@Shadow method not present  (mixin: %s)".formatted(mixinClassName)));
+
+                boolean mixinFin  = (method.visibleAnnotations.stream().anyMatch(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/Final;")));
+                boolean targetFin = (realMethod.access & ACC_FINAL) == ACC_FINAL;
+
+                if (mixinFin != targetFin)
+                    IO.println("[TedgeMixin] Mismatched final state on a @Shadow method; target %s @Final, mixin method %s".formatted(
+                            targetFin ? "is" : "isn't",
+                            mixinFin ? "is" : "isn't"
+                    ));
             } else {
                 if ((method.access & ACC_ABSTRACT) == ACC_ABSTRACT)
                     throw new MixinIssue("Non-shadow abstract methods are not allowed");
