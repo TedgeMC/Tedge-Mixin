@@ -62,7 +62,7 @@ public class Transformer {
                     mutable = true;
 
                     if ((realField.access & ACC_FINAL) == ACC_FINAL)
-                        realField.access |= ACC_FINAL;
+                        realField.access -= ACC_FINAL;
                 } else {
                     targetFinal = (realField.access & ACC_FINAL) == ACC_FINAL;
                     mutable = false;
