@@ -5,6 +5,7 @@ import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
 import pl.olafcio.tedge_mixin.annotation_state.Mixin;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
+import pl.olafcio.tedge_mixin.extension.Extension;
 import pl.olafcio.tedge_mixin.jvm.Transformer;
 
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.nio.file.Path;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -27,6 +29,17 @@ public class MixinLoader {
     protected final Instrumentation inst;
     protected final ArrayList<String> mixins
               = new ArrayList<>();
+
+    private final ArrayList<Extension> extensions
+            = new ArrayList<>();
+
+    protected void addExtension(Extension extension) {
+        extensions.add(extension);
+    }
+
+    public List<Extension> getExtensions() {
+        return extensions;
+    }
 
     public MixinLoader(Instrumentation inst) {
         this.inst = inst;
@@ -179,8 +192,15 @@ public class MixinLoader {
 
         mixins.add(className);
 
+        for (var ext : extensions)
+            ext.onMixinPreInit(className, node, config);
+
         var state = new MixinState(className, node, config);
         state.init(mixin);
+
+        for (var ext : extensions)
+            ext.onMixinPostInit(className, node, config);
+
         state.register(inst);
 
         node.innerClasses.clear();
@@ -188,7 +208,10 @@ public class MixinLoader {
         mixinNotes.put(className, mixin);
     }
 
-    private static void transformDependant(String mixinClassName, ClassNode mixinNode, MixinConfig config, String runtimeClassName) {
+    private void transformDependant(String mixinClassName, ClassNode mixinNode, MixinConfig config, String runtimeClassName) {
+        for (var ext : extensions)
+            ext.onSubclassPreTransform(mixinClassName, mixinNode, config, runtimeClassName);
+
         var transformer = new Transformer(config, null, null, mixinClassName, runtimeClassName);
 
         var shadowedFields = new ArrayList<String>();
@@ -215,6 +238,9 @@ public class MixinLoader {
         for (var m : mixinNode.methods) {
             transformer.transformInstructions(m, shadowedFields, config.tedge().prefix(), shadowedMethods);
         }
+
+        for (var ext : extensions)
+            ext.onSubclassPostTransform(mixinClassName, mixinNode, config, runtimeClassName);
     }
 
     private static int publicize(int access) {
