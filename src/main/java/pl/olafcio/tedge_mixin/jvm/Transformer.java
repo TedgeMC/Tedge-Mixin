@@ -98,15 +98,16 @@ public class Transformer {
             runtimeNode.interfaces.add(iname);
 
             try {
-                var klass = Class.forName(iname);
-                while (klass != null && klass != Object.class) {
+                var klass = Class.forName(iname.replace("/", "."));
+
+                do {
                     var methods = klass.getDeclaredMethods();
                     for (var m : methods)
                         shadowedMethods.add(m.getName() + "(" + Arrays.stream(m.getParameterTypes()).map(Class::descriptorString).collect(Collectors.joining()) + ")"
                                                          + m.getReturnType().descriptorString());
 
                     klass = klass.getSuperclass();
-                }
+                } while (klass != null && klass != Object.class);
             } catch (ClassNotFoundException e) {
                 throw new RuntimeException("Unable to iterate through implemented interface's methods", e);
             }
