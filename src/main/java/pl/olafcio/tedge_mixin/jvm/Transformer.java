@@ -74,6 +74,10 @@ public class Transformer {
                 continue;
             }
 
+            if (shadowedMethods.contains(method.name + method.desc)) {
+                continue;
+            }
+
             method.name = prefix + method.name;
 
             for (var ins : method.instructions) {
