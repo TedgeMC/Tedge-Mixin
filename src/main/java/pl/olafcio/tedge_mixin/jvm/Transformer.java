@@ -1,8 +1,6 @@
 package pl.olafcio.tedge_mixin.jvm;
 
 import org.objectweb.asm.AnnotationVisitor;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
 import pl.olafcio.tedge_mixin.MixinIssue;
 import pl.olafcio.tedge_mixin.MixinTransformationError;
@@ -135,31 +133,7 @@ public class Transformer {
 
             method.name = prefix + method.name;
 
-            for (var ins : method.instructions) {
-                if (ins instanceof FieldInsnNode fin) {
-                    if (fin.owner.equals(this.mixinClassName)) {
-                        if (!shadowedFields.contains(fin.name))
-                            fin.name = prefix + fin.name;
-
-                        fin.owner = runtimeClassName;
-                        fin.desc = transformType(fin.desc);
-                    }
-                } else if (ins instanceof MethodInsnNode min) {
-                    if (min.owner.equals(this.mixinClassName)) {
-                        if (min.name.contains("<"))
-                            throw new MixinTransformationError("Illegal method invocation in mixin: '%s'".formatted(min.name));
-
-                        if (!shadowedMethods.contains(min.name + min.desc))
-                            min.name = prefix + min.name;
-
-                        min.owner = runtimeClassName;
-                        min.desc = transformType(min.desc);
-                    }
-                } else if (ins instanceof InvokeDynamicInsnNode idn) {
-//                    IO.println("@@ INVOKEDYNAMIC :: [bsm(" + idn.bsm.getOwner() + ") " + idn.bsm.getName() + "] " + idn.name + " <<" + idn.desc + ">>");
-                    idn.desc = transformType(idn.desc);
-                }
-            }
+            transformInstructions(method, shadowedFields, prefix, shadowedMethods);
 
             if (method.visibleAnnotations != null) {
                 for (var a : method.visibleAnnotations) {
@@ -287,6 +261,34 @@ public class Transformer {
         }
     }
 
+    public void transformInstructions(MethodNode method, ArrayList<String> shadowedFields, String prefix, ArrayList<String> shadowedMethods) {
+        for (var ins : method.instructions) {
+            if (ins instanceof FieldInsnNode fin) {
+                if (fin.owner.equals(this.mixinClassName)) {
+                    if (!shadowedFields.contains(fin.name))
+                        fin.name = prefix + fin.name;
+
+                    fin.owner = runtimeClassName;
+                    fin.desc = transformType(fin.desc);
+                }
+            } else if (ins instanceof MethodInsnNode min) {
+                if (min.owner.equals(this.mixinClassName)) {
+                    if (min.name.contains("<"))
+                        throw new MixinTransformationError("Illegal method invocation in mixin: '%s'".formatted(min.name));
+
+                    if (!shadowedMethods.contains(min.name + min.desc))
+                        min.name = prefix + min.name;
+
+                    min.owner = runtimeClassName;
+                    min.desc = transformType(min.desc);
+                }
+            } else if (ins instanceof InvokeDynamicInsnNode idn) {
+//                    IO.println("@@ INVOKEDYNAMIC :: [bsm(" + idn.bsm.getOwner() + ") " + idn.bsm.getName() + "] " + idn.name + " <<" + idn.desc + ">>");
+                idn.desc = transformType(idn.desc);
+            }
+        }
+    }
+
     protected InsnList voidCI(MethodNode method) {
         return new InsnList() {{
             // creating the CallbackInfo object
@@ -312,7 +314,7 @@ public class Transformer {
         }};
     }
 
-    protected String transformType(String jvmType) {
+    public String transformType(String jvmType) {
         return new TypeTransformer(jvmType) {
             @Override
             protected String transformLiteral(String literal) {

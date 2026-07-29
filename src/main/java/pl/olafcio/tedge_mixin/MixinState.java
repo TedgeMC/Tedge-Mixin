@@ -26,7 +26,7 @@ public class MixinState {
 
     protected Mixin mixin;
 
-    public void init() {
+    public void init(Mixin mixin) {
         IO.println("[TedgeMixin] Registering '%s'".formatted(node.name));
         IO.println("[TedgeMixin] [Debug] Methods: " + node.methods.stream().map(m -> "[!] " + m.name + " " + m.desc).toList());
         IO.println("[TedgeMixin] [Debug] Fields: " + node.fields.stream().map(f -> "[!] " + f.desc + " " + f.name).toList());
@@ -35,44 +35,12 @@ public class MixinState {
         IO.println("[TedgeMixin] [Debug] Attributes: " + node.attrs);
         IO.println("[TedgeMixin] [Debug] Interfaces: " + node.interfaces);
 
+        this.mixin = mixin;
+
         for (var a : node.invisibleAnnotations)
-            if (a.desc.equals("Lorg/spongepowered/asm/mixin/Mixin;"))
-                mixin = ann_Mixin(a);
+            if (a.desc.equals("Lorg/spongepowered/asm/mixin/Mixin;"));
             else
                 throw new RuntimeException("Unexpected '@%s'".formatted(a.desc.substring(1, a.desc.length() - 1).replace("/", ".")));
-    }
-
-    private static Mixin ann_Mixin(AnnotationNode a) {
-        var targets = new ArrayList<String>();
-
-        a.accept(new AnnotationVisitor(ASM9) {
-            @Override
-            public AnnotationVisitor visitArray(String name) {
-                var parent = super.visitArray(name);
-                if (name.equals("value")) {
-                    return new AnnotationVisitor(ASM9, parent) {
-                        @Override
-                        public void visit(String name, Object value) {
-                            super.visit(name, value);
-                            if (value instanceof Type type) {
-                                if (type.getSort() == Type.OBJECT) {
-                                    targets.add(type.getInternalName());
-                                }
-                            }
-                        }
-                    };
-                }
-
-                throw new RuntimeException("Unimplemented support for @Mixin(%s = %s)".formatted(name, parent));
-            }
-
-            @Override
-            public void visit(String name, Object value) {
-                throw new RuntimeException("Unimplemented support for @Mixin(%s = %s)".formatted(name, value));
-            }
-        });
-
-        return new Mixin(targets, 0, false);
     }
 
     private int registered = 0;
