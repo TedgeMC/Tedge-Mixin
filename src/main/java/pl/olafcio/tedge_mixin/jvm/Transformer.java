@@ -30,6 +30,8 @@ public class Transformer {
     }
 
     public void transform() {
+        runtimeNode.innerClasses.addAll(mixinNode.innerClasses);
+
         var prefix = config.tedge().prefix();
         var shadowedFields = new ArrayList<String>();
 
@@ -289,8 +291,9 @@ public class Transformer {
                         fin.name = prefix + fin.name;
 
                     fin.owner = runtimeClassName;
-                    fin.desc = transformType(fin.desc);
                 }
+
+                fin.desc = transformType(fin.desc);
             } else if (ins instanceof MethodInsnNode min) {
                 if (min.owner.equals(this.mixinClassName)) {
                     if (min.name.contains("<"))
@@ -300,8 +303,9 @@ public class Transformer {
                         min.name = prefix + min.name;
 
                     min.owner = runtimeClassName;
-                    min.desc = transformType(min.desc);
                 }
+
+                min.desc = transformType(min.desc);
             } else if (ins instanceof InvokeDynamicInsnNode idn) {
 //                    IO.println("@@ INVOKEDYNAMIC :: [bsm(" + idn.bsm.getOwner() + ") " + idn.bsm.getName() + "] " + idn.name + " <<" + idn.desc + ">>");
                 idn.desc = transformType(idn.desc);

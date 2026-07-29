@@ -17,4 +17,11 @@ void main() {
             return literal.equals("java/lang/String") ? "java/lang/Integer" : "INCORRECT!![%s]".formatted(literal);
         }
     }.get());
+
+    Assertions.assertEquals("(Lnet/minecraft/client/Minecraft;Lnet/minecraft/client/Minecraft;)V", new TypeTransformer("(Lcom/example/testmod/mixin/MinecraftMixin;Lnet/minecraft/client/Minecraft;)V") {
+        @Override
+        protected String transformLiteral(String literal) {
+            return literal.equals("com/example/testmod/mixin/MinecraftMixin") ? "net/minecraft/client/Minecraft" : literal;
+        }
+    }.get());
 }
