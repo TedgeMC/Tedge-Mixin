@@ -46,20 +46,39 @@ public class Transformer {
                                                            .findAny()
                                                            .orElseThrow(() -> new MixinIssue("@Shadow field not present  (mixin: %s)".formatted(mixinClassName)));
 
-                boolean mixinFin = (field.access & ACC_FINAL) == ACC_FINAL;
-                boolean targetFin = (realField.access & ACC_FINAL) == ACC_FINAL;
+                boolean finalAnnot = field.visibleAnnotations.stream().anyMatch(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/Final;"));
+                boolean finalKeywd = (field.access & ACC_FINAL) == ACC_FINAL;
 
-                if (mixinFin != targetFin)
+                boolean targetFinal;
+                boolean mutable;
+
+                if (field.visibleAnnotations.stream().anyMatch(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/Mutable;"))) {
+                    if (!finalAnnot)
+                        throw new MixinIssue("@Mutable shadow field without @Final");
+
+                    targetFinal = false;
+                    mutable = true;
+
+                    if ((realField.access & ACC_FINAL) == ACC_FINAL)
+                        realField.access |= ACC_FINAL;
+                } else {
+                    targetFinal = (realField.access & ACC_FINAL) == ACC_FINAL;
+                    mutable = false;
+                }
+
+                if (finalKeywd && mutable)
+                    throw new MixinIssue("@Mutable shadow field marked with 'final' keyword");
+
+                if (finalKeywd != targetFinal)
                     IO.println("[TedgeMixin] Mismatched final state on a @Shadow field; target %s final, mixin field %s".formatted(
-                            targetFin ? "is" : "isn't",
-                            mixinFin ? "is" : "isn't"
+                            targetFinal ? "is" : "isn't",
+                            finalKeywd ? "is" : "isn't"
                     ));
 
-                boolean annFin = field.visibleAnnotations.stream().anyMatch(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/Final;"));
-                if (mixinFin != annFin)
+                if ((finalKeywd && !finalAnnot) || (!finalKeywd && finalAnnot && !mutable))
                     throw new MixinIssue("[TedgeMixin] Mismatched final state on a @Shadow field in the mixin itself; %s final,%s annotated with @Final".formatted(
-                            mixinFin ? "is" : "isn't",
-                            annFin ? "" : " not"
+                            finalKeywd ? "is" : "isn't",
+                            finalAnnot ? "" : " not"
                     ));
 
                 continue;
