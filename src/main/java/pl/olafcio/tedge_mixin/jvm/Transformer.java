@@ -7,6 +7,8 @@ import pl.olafcio.tedge_mixin.MixinTransformationError;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -89,6 +91,24 @@ public class Transformer {
         }
 
         var shadowedMethods = new ArrayList<String>();
+
+        for (var iname : mixinNode.interfaces) {
+            runtimeNode.interfaces.add(iname);
+
+            try {
+                var klass = Class.forName(iname);
+                while (klass != null && klass != Object.class) {
+                    var methods = klass.getDeclaredMethods();
+                    for (var m : methods)
+                        shadowedMethods.add(m.getName() + "(" + Arrays.stream(m.getParameterTypes()).map(Class::descriptorString).collect(Collectors.joining()) + ")"
+                                                         + m.getReturnType().descriptorString());
+
+                    klass = klass.getSuperclass();
+                }
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException("Unable to iterate through implemented interface's methods", e);
+            }
+        }
 
         for (var method : mixinNode.methods) {
             if (method.name.contains("<"))
