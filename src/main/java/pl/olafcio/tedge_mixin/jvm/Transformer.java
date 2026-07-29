@@ -40,6 +40,28 @@ public class Transformer {
 
             if (field.visibleAnnotations != null && field.visibleAnnotations.stream().anyMatch(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/Shadow;"))) {
                 shadowedFields.add(field.name);
+
+                var realField = runtimeNode.fields.stream().filter(f -> f.name.equals(field.name) &&
+                                                                                  f.desc.equals(field.desc))
+                                                           .findAny()
+                                                           .orElseThrow(() -> new MixinIssue("@Shadow field not present  (mixin: %s)".formatted(mixinClassName)));
+
+                boolean mixinFin = (field.access & ACC_FINAL) == ACC_FINAL;
+                boolean targetFin = (realField.access & ACC_FINAL) == ACC_FINAL;
+
+                if (mixinFin != targetFin)
+                    IO.println("[TedgeMixin] Mismatched final state on a @Shadow field; target %s final, mixin field %s".formatted(
+                            targetFin ? "is" : "isn't",
+                            mixinFin ? "is" : "isn't"
+                    ));
+
+                boolean annFin = field.visibleAnnotations.stream().anyMatch(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/Final;"));
+                if (mixinFin != annFin)
+                    throw new MixinIssue("[TedgeMixin] Mismatched final state on a @Shadow field in the mixin itself; %s final,%s annotated with @Final".formatted(
+                            mixinFin ? "is" : "isn't",
+                            annFin ? "" : " not"
+                    ));
+
                 continue;
             }
 
