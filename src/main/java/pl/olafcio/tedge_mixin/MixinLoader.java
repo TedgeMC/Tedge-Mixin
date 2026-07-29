@@ -5,7 +5,11 @@ import org.objectweb.asm.tree.ClassNode;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
 
 import java.io.IOException;
+import java.lang.instrument.ClassFileTransformer;
+import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
+import java.security.ProtectionDomain;
+import java.util.ArrayList;
 import java.util.jar.JarFile;
 
 import static org.objectweb.asm.Opcodes.ASM9;
@@ -13,12 +17,39 @@ import static org.objectweb.asm.Opcodes.ASM9;
 /**
  * This class is used to register mixins.
  */
-@SuppressWarnings("ClassCanBeRecord")
 public class MixinLoader {
     protected final Instrumentation inst;
+    protected final ArrayList<String> mixins
+              = new ArrayList<>();
 
     public MixinLoader(Instrumentation inst) {
         this.inst = inst;
+
+        attachGlobal(inst);
+    }
+
+    private void attachGlobal(Instrumentation inst) {
+        inst.addTransformer(new ClassFileTransformer() {
+            @Override
+            public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
+                var klass = new ClassReader(classfileBuffer);
+                var visitor = new ClassVisitor(ASM9) {
+                    @Override
+                    public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+                        if (mixins.contains(name)) {
+                            new NoClassDefFoundError("Mixins can't be referenced").printStackTrace();
+                            System.exit(1);
+                        }
+
+                        super.visit(version, access, name, signature, superName, interfaces);
+                    }
+                };
+
+                klass.accept(visitor, 0);
+
+                return null;
+            }
+        });
     }
 
     /**
@@ -35,7 +66,11 @@ public class MixinLoader {
             if (name.endsWith(".class")) {
                 if (name.startsWith(config._package().replace(".", "/"))) {
                     try (var stream = file.getInputStream(nxt)) {
-                        addInjection(name.substring(0, name.length() - 6).replace(".", "/"), config, stream.readAllBytes());
+                        String internalName = name.substring(0, name.length() - 6);
+
+                        addInjection(internalName, config, stream.readAllBytes());
+
+                        mixins.add(internalName);
                     } catch (IOException e) {
                         throw new RuntimeException("Failed to read mixin '%s'".formatted(name), e);
                     }
