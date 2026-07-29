@@ -219,9 +219,9 @@ public class MixinLoader {
 
     private static int publicize(int access) {
         if ((access & ACC_PRIVATE) == ACC_PRIVATE)
-            access |= ACC_PRIVATE;
+            access -= ACC_PRIVATE;
         else if ((access & ACC_PROTECTED) == ACC_PROTECTED)
-            access |= ACC_PROTECTED;
+            access -= ACC_PROTECTED;
         else if ((access & ACC_PUBLIC) == ACC_PUBLIC)
             return access;
 
