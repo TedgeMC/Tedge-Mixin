@@ -6,6 +6,7 @@ import org.objectweb.asm.tree.ClassNode;
 import pl.olafcio.tedge_mixin.annotation_state.Mixin;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
 import pl.olafcio.tedge_mixin.extension.Extension;
+import pl.olafcio.tedge_mixin.extension.impl.GroovyExtension;
 import pl.olafcio.tedge_mixin.jvm.Transformer;
 
 import java.io.IOException;
@@ -43,6 +44,11 @@ public class MixinLoader {
 
     public MixinLoader(Instrumentation inst) {
         this.inst = inst;
+        addStandardExtensions();
+    }
+
+    protected void addStandardExtensions() {
+        addExtension(new GroovyExtension());
     }
 
     public void finishInjections() {
