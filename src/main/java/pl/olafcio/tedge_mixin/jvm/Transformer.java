@@ -31,7 +31,7 @@ public class Transformer {
 
     public void transform() {
         var prefix = config.tedge().prefix();
-        var shadowed = new ArrayList<String>();
+        var shadowedFields = new ArrayList<String>();
 
         for (FieldNode field : mixinNode.fields) {
             if (field.name.contains("<")) {
@@ -39,7 +39,7 @@ public class Transformer {
             }
 
             if (field.visibleAnnotations != null && field.visibleAnnotations.stream().anyMatch(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/Shadow;"))) {
-                shadowed.add(field.name);
+                shadowedFields.add(field.name);
                 continue;
             }
 
@@ -49,16 +49,34 @@ public class Transformer {
             runtimeNode.fields.add(field);
         }
 
+        var shadowedMethods = new ArrayList<String>();
+
         for (var method : mixinNode.methods) {
             if (method.name.contains("<"))
                 continue;
+
+            if (method.visibleAnnotations != null && method.visibleAnnotations.stream().anyMatch(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/Shadow;"))) {
+                if (
+                        (method.access & ACC_STATIC) != ACC_STATIC &&
+                        (method.access & ACC_ABSTRACT) != ACC_ABSTRACT
+                )
+                    throw new MixinIssue("Non-static shadow methods must be abstract");
+
+                shadowedMethods.add(method.name + method.desc);
+            }
+        }
+
+        for (var method : mixinNode.methods) {
+            if (method.name.contains("<")) {
+                continue;
+            }
 
             method.name = prefix + method.name;
 
             for (var ins : method.instructions) {
                 if (ins instanceof FieldInsnNode fin) {
                     if (fin.owner.equals(this.mixinClassName)) {
-                        if (!shadowed.contains(fin.name))
+                        if (!shadowedFields.contains(fin.name))
                             fin.name = prefix + fin.name;
 
                         fin.owner = runtimeClassName;
@@ -69,7 +87,9 @@ public class Transformer {
                         if (min.name.contains("<"))
                             throw new MixinTransformationError("Illegal method invocation in mixin: '%s'".formatted(min.name));
 
-                        min.name = prefix + min.name;
+                        if (!shadowedMethods.contains(min.name + min.desc))
+                            min.name = prefix + min.name;
+
                         min.owner = runtimeClassName;
                         min.desc = transformType(min.desc);
                     }
