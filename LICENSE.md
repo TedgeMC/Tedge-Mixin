@@ -1,6 +1,8 @@
 **OLAFCIO TEDGE-SUITE LICENSE**
 
-Released at 28 July 2026
+Released at 29 July 2026
+
+###### &lt; This license should be available at https://github.com/TedgeMC/Licenses &gt;
 
 ---------------------------
 
@@ -10,6 +12,7 @@ Released at 28 July 2026
 - *"this project"* refers to the project using any tools from the Tedge ModLoader suite;
 - *"the program"* refers to the project using any tools from the Tedge ModLoader suite;
 - *"I"* means every repository maintainer;
+- *"You"* means every repository maintainer;
 - *"My"* means every repository maintainer;
 - *"etc."* means *"any of the aforementioned tools (any similar tools also count)"*;
 - *"Olafcio"* is the founder and lead programmer of the Tedge ModLoader suite;
@@ -33,7 +36,7 @@ Released at 28 July 2026
 ---------------------------
 
 By using/contributing to/depending on/installing any libraries from the Tedge ModLoader suite (that includes Tedge,
-Tedge Jargen, Tedge Sharp and Tedge Launcher), I promise to therefore never use generative AI (*"artificial intelligence"*)
+Tedge Jargen, Tedge Sharp, Tedge Launcher and Tedge Mixin), I promise to therefore never use generative AI (*"artificial intelligence"*)
 tools, such as ChatGPT, Google Gemini, Claude etc. along/to develop/to improve with the Tedge ModLoader tools.
 
 The Tedge founder, Olafcio, has a right to terminate my license for using the Tedge ModLoader suite at any time,
@@ -67,4 +70,17 @@ following conditions:
    `This project uses elements from the Tedge ModLoader suite (github.com/TedgeMC), and hereby all its maintainers (including the creator, developers and artwork managers/artists) accept to the OLAFCIO TEDGE-SUITE LICENSE.`
    <br/><br/>
    You **don't** have to specify the accurate location where you used code fragments of any of the tools from the Tedge ModLoader suite.<br/>
-   I still have to provide this document in the program files though (according with *Section #2, article 1*).
+   I still have to provide this document in the program files though (according to *Section #2, article 1*).
+
+---------------------------
+
+**Section 3: License modification**
+
+---------------------------
+
+If I copy this license and/or its parts, I cannot claim I fully made it.<br/>
+The following mention must be present at the top of my modified version of this document:
+
+`This license is based on the OLAFCIO EXTERNAL TEDGE-SUITE LICENSE.`
+
+You **don't** have to specify the accurate location where you used fragments of this document.
