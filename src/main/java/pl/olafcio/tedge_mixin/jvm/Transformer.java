@@ -83,7 +83,7 @@ public class Transformer {
                 for (var a : method.visibleAnnotations) {
                     if (a.desc.equals("Lorg/spongepowered/asm/mixin/injection/Inject;")) {
                         var targetedMethods = new ArrayList<MethodNode>();
-                        var atpoint = new String[1];
+                        var atpoint = new ArrayList<String>();
 
                         a.accept(new AnnotationVisitor(ASM9) {
                             @Override
@@ -102,7 +102,7 @@ public class Transformer {
                                                 public void visit(String name, Object value) {
                                                     if (name.equals("value")) {
                                                         if (value.equals("HEAD")) {
-                                                            atpoint[0] = (String) value;
+                                                            atpoint.add((String) value);
 
                                                             if (!method.desc.endsWith(")V"))
                                                                 throw new MixinIssue("HEAD injection method must return void");
@@ -186,34 +186,15 @@ public class Transformer {
                         if (targetedMethods.isEmpty())
                             throw new MixinIssue("No targeted methods  (mixin: %s)".formatted(mixinClassName));
 
-                        targetedMethods.forEach(m -> {
-                            m.maxLocals += 2;
-                            m.maxStack += 2;
-                            m.instructions.insert(
-                                    new InsnList() {{
-                                        // creating the CallbackInfo object
-                                        add(new TypeInsnNode(NEW, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo"));
-                                        add(new InsnNode(DUP));
-                                        add(new MethodInsnNode(INVOKESPECIAL, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo", "<init>", "()V"));
-                                        add(new VarInsnNode(ASTORE, 1));
-                                        // calling the mixin method
-                                        add(new VarInsnNode(ALOAD, 0));
-                                        add(new VarInsnNode(ALOAD, 1));
-                                        add(new MethodInsnNode(INVOKEVIRTUAL, runtimeClassName, method.name, method.desc));
-                                        // returning if cancelled
-                                        add(new VarInsnNode(ALOAD, 1));
-                                        add(new MethodInsnNode(INVOKEVIRTUAL, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo", "isCancelled", "()Z", false));
+                        for (String at : atpoint) {
+                            targetedMethods.forEach(m -> {
+                                m.maxLocals += 2;
+                                m.maxStack += 2;
 
-                                        var label = new LabelNode();
-
-                                        add(new JumpInsnNode(IFEQ, label));
-                                        add(new InsnNode(RETURN));
-
-                                        add(label);
-                                        add(new FrameNode(F_APPEND, 1, new Object[]{ "org/spongepowered/asm/mixin/injection/callback/CallbackInfo" }, 0, new Object[]{}));
-                                    }}
-                            );
-                        });
+                                if (at.equals("HEAD"))
+                                    m.instructions.insert(voidCI(method));
+                            });
+                        }
 
                         break;
                     }
@@ -222,6 +203,31 @@ public class Transformer {
                 runtimeNode.methods.add(method);
             }
         }
+    }
+
+    protected InsnList voidCI(MethodNode method) {
+        return new InsnList() {{
+            // creating the CallbackInfo object
+            add(new TypeInsnNode(NEW, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo"));
+            add(new InsnNode(DUP));
+            add(new MethodInsnNode(INVOKESPECIAL, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo", "<init>", "()V"));
+            add(new VarInsnNode(ASTORE, 1));
+            // calling the mixin method
+            add(new VarInsnNode(ALOAD, 0));
+            add(new VarInsnNode(ALOAD, 1));
+            add(new MethodInsnNode(INVOKEVIRTUAL, runtimeClassName, method.name, method.desc));
+            // returning if cancelled
+            add(new VarInsnNode(ALOAD, 1));
+            add(new MethodInsnNode(INVOKEVIRTUAL, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo", "isCancelled", "()Z", false));
+
+            var label = new LabelNode();
+
+            add(new JumpInsnNode(IFEQ, label));
+            add(new InsnNode(RETURN));
+
+            add(label);
+            add(new FrameNode(F_APPEND, 1, new Object[]{"org/spongepowered/asm/mixin/injection/callback/CallbackInfo"}, 0, new Object[]{}));
+        }};
     }
 
     protected String transformType(String jvmType) {
