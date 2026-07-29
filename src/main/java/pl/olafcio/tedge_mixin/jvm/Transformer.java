@@ -63,6 +63,9 @@ public class Transformer {
                     throw new MixinIssue("Non-static shadow methods must be abstract");
 
                 shadowedMethods.add(method.name + method.desc);
+            } else {
+                if ((method.access & ACC_ABSTRACT) == ACC_ABSTRACT)
+                    throw new MixinIssue("Non-shadow abstract methods are not allowed");
             }
         }
 
