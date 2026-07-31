@@ -12,10 +12,7 @@ import pl.olafcio.tedge_mixin.jvm.Transformer;
 import java.io.IOException;
 import java.lang.instrument.*;
 import java.security.ProtectionDomain;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -87,10 +84,23 @@ public class MixinLoader {
      * Initializes transformers to perform the provided injections.<br/>
      * After everything has been transformed, the transformer is unregistered.
      */
-    public void addInjections(MixinConfig config, JarFile file, ZipOutputStream output) {
+    public void addInjections(MixinConfig config, JarFile file, ZipOutputStream output, Environment environment) {
         var zipEntries = file.entries();
 
-        var mixinList = Arrays.stream(config.mixins()).toList();
+        List<String> mixinList;
+        List<String> ignoreList;
+
+        mixinList = new ArrayList<>(Arrays.asList(config.mixins()));
+
+        // epstein client list
+        if (environment == Environment.CLIENT) {
+            Collections.addAll(mixinList, config.client());
+            ignoreList = Arrays.stream(config.server()).toList();
+        } else if (environment == Environment.SERVER) {
+            Collections.addAll(mixinList, config.server());
+            ignoreList = Arrays.stream(config.client()).toList();
+        } else
+            throw new RuntimeException("Unknown environment (specified '%s')".formatted(environment));
 
         do {
             var entry = zipEntries.nextElement();
@@ -110,12 +120,16 @@ public class MixinLoader {
 
                             klass.accept(node, 0);
 
+                            String jname1 = internalName.replace("/", ".");
+                            String jname2 = Arrays.stream(internalName.split("/")).toList().getLast();
+
                             var actuallyMixin = (
-                                    mixinList.contains(internalName.replace("/", ".")) ||
-                                    mixinList.contains(Arrays.stream(internalName.split("/")).toList().getLast())
+                                    mixinList.contains(jname1) ||
+                                    mixinList.contains(jname2)
                             );
 
-                            if (actuallyMixin)
+                            if (ignoreList.contains(jname1) || ignoreList.contains(jname2));
+                            else if (actuallyMixin)
                                 addInjection(node, internalName, config);
                             else if (registerInner(node, entry));
                             else
@@ -146,6 +160,9 @@ public class MixinLoader {
         for (var innerClass : innerClasses.entrySet()) {
             var mixinClassName = innerClass.getKey();
             var mixin = mixinNotes.get(mixinClassName);
+
+            if (mixin == null)
+                continue;
 
             var runtimeClassName = mixin.targets().size() == 1
                     ? mixin.targets().getFirst()
