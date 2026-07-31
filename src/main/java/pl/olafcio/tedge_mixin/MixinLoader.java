@@ -11,10 +11,9 @@ import pl.olafcio.tedge_mixin.jvm.Transformer;
 
 import java.io.IOException;
 import java.lang.instrument.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.jar.JarFile;
@@ -91,6 +90,8 @@ public class MixinLoader {
     public void addInjections(MixinConfig config, JarFile file, ZipOutputStream output) {
         var zipEntries = file.entries();
 
+        var mixinList = Arrays.stream(config.mixins()).toList();
+
         do {
             var entry = zipEntries.nextElement();
             var name = entry.getName();
@@ -109,7 +110,16 @@ public class MixinLoader {
 
                             klass.accept(node, 0);
 
-                            addInjection(node, internalName, config, entry);
+                            var actuallyMixin = (
+                                    mixinList.contains(internalName.replace("/", ".")) ||
+                                    mixinList.contains(Arrays.stream(internalName.split("/")).toList().getLast())
+                            );
+
+                            if (actuallyMixin)
+                                addInjection(node, internalName, config);
+                            else if (registerInner(node, entry));
+                            else
+                                throw new RuntimeException("Non-mixin class in mixin package");
 
                             break contentSet;
                         } catch (IOException e) {
@@ -174,7 +184,7 @@ public class MixinLoader {
     private final HashMap<String, Mixin> mixinNotes
             = new HashMap<>();
 
-    private void addInjection(ClassNode node, String className, MixinConfig config, ZipEntry entryForInnerClass) {
+    private void addInjection(ClassNode node, String className, MixinConfig config) {
         Mixin mixin = null;
 
         if (node.invisibleAnnotations != null)
@@ -182,19 +192,8 @@ public class MixinLoader {
                 if (a.desc.equals("Lorg/spongepowered/asm/mixin/Mixin;"))
                     mixin = ann_Mixin(a);
 
-        if (mixin == null) {
-            if (node.outerClass != null) {
-                innerClasses.computeIfAbsent(node.outerClass, _ -> new ArrayList<>()).add(
-                        new InnerClass(entryForInnerClass, node)
-                );
-
-                node.outerClass = null;
-
-                return;
-            }
-
-            throw new RuntimeException("Non-mixin class in mixin package");
-        }
+        if (mixin == null)
+            throw new RuntimeException("Mixin class (listed in mixins.json file) not annotated with @Mixin");
 
         mixins.add(className);
 
@@ -212,6 +211,20 @@ public class MixinLoader {
         node.innerClasses.clear();
 
         mixinNotes.put(className, mixin);
+    }
+
+    private boolean registerInner(ClassNode node, ZipEntry entryForInnerClass) {
+        if (node.outerClass != null) {
+            innerClasses.computeIfAbsent(node.outerClass, _ -> new ArrayList<>()).add(
+                    new InnerClass(entryForInnerClass, node)
+            );
+
+            node.outerClass = null;
+
+            return true;
+        }
+
+        return false;
     }
 
     private void transformDependant(String mixinClassName, ClassNode mixinNode, MixinConfig config, String runtimeClassName) {
