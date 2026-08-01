@@ -48,7 +48,7 @@ public abstract class TypeTransformer {
             output += ')';
 
             apply();
-        } else if (nowp('I') || nowp('F') || nowp('Z') || nowp('D') || nowp('V') || nowp('L') || nowp('C') || nowp('B') || nowp('J')) {
+        } else if (nowp('I') || nowp('F') || nowp('Z') || nowp('D') || nowp('V') || nowp('C') || nowp('B') || nowp('J') || nowp('S')) {
             // Primitive
             output += consume();
         } else {
