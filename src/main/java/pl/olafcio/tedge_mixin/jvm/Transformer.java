@@ -5,9 +5,17 @@ import org.objectweb.asm.tree.*;
 import pl.olafcio.tedge_mixin.MixinIssue;
 import pl.olafcio.tedge_mixin.MixinTransformationError;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
+import pl.olafcio.tedge_mixin.jvm.atpoint.AtPoint;
+import pl.olafcio.tedge_mixin.jvm.atpoint.impl.AtHead;
+import pl.olafcio.tedge_mixin.jvm.atpoint.impl.AtReturn;
+import pl.olafcio.tedge_mixin.jvm.atpoint.impl.AtTail;
+import pl.olafcio.tedge_mixin.jvm.instance.ApplyParams;
+import pl.olafcio.tedge_mixin.jvm.instance.Callbacks;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.objectweb.asm.Opcodes.*;
@@ -28,6 +36,13 @@ public class Transformer {
         this.mixinClassName = mixinClassName;
         this.runtimeClassName = runtimeClassName;
     }
+
+    private static final HashMap<String, Supplier<AtPoint>> atpoints
+                   = new HashMap<>() {{
+                         put("HEAD", () -> AtHead.INSTANCE);
+                         put("RETURN", () -> AtReturn.INSTANCE);
+                         put("TAIL", () -> AtTail.INSTANCE);
+                     }};
 
     public void transform() {
         runtimeNode.innerClasses.addAll(mixinNode.innerClasses);
@@ -162,163 +177,18 @@ public class Transformer {
                 for (var a : method.visibleAnnotations) {
                     if (a.desc.equals("Lorg/spongepowered/asm/mixin/injection/Inject;")) {
                         var targetedMethods = new ArrayList<MethodNode>();
-                        var atpoint = new ArrayList<String>();
+                        var atpoint = new ArrayList<AtPoint>();
 
-                        a.accept(new AnnotationVisitor(ASM9) {
-                            @Override
-                            public void visit(String name, Object value) {
-                                throw new MixinIssue("Unimplemented property @Inject(%s = %s)".formatted(name, value));
-                            }
-
-                            @Override
-                            public AnnotationVisitor visitArray(String name) {
-                                if (name.equals("at")) {
-                                    return new AnnotationVisitor(ASM9) {
-                                        @Override
-                                        public AnnotationVisitor visitAnnotation(String name, String descriptor) {
-                                            return new AnnotationVisitor(ASM9) {
-                                                @Override
-                                                public void visit(String name, Object value) {
-                                                    if (name.equals("value")) {
-                                                        if (value.equals("HEAD")) {
-                                                            atpoint.add((String) value);
-
-                                                            if (!method.desc.endsWith(")V"))
-                                                                throw new MixinIssue("HEAD injection method must return void");
-                                                        } else if (value.equals("RETURN")) {
-                                                            atpoint.add((String) value);
-
-                                                            if (!method.desc.endsWith(")V"))
-                                                                throw new MixinIssue("RETURN injection method must return void");
-                                                        } else if (value.equals("TAIL")) {
-                                                            atpoint.add((String) value);
-
-                                                            if (!method.desc.endsWith(")V"))
-                                                                throw new MixinIssue("RETURN injection method must return void");
-                                                        } else
-                                                            throw new MixinIssue("Unimplemented property atpoint '%s'  (mixin: %s)".formatted(value, mixinClassName));
-                                                    } else {
-                                                        throw new MixinIssue("Unimplemented property @At(%s = %s)".formatted(name, value));
-                                                    }
-                                                }
-
-                                                @Override
-                                                public AnnotationVisitor visitArray(String name) {
-                                                    throw new MixinIssue("Unimplemented property @At(%s = ...)".formatted(name));
-                                                }
-
-                                                @Override
-                                                public void visitEnum(String name, String descriptor, String value) {
-                                                    throw new MixinIssue("Unimplemented property @At(%s = %s)".formatted(name, value));
-                                                }
-
-                                                @Override
-                                                public AnnotationVisitor visitAnnotation(String name, String descriptor) {
-                                                    throw new MixinIssue("Unimplemented property @At(%s = ...)".formatted(name));
-                                                }
-                                            };
-                                        }
-                                    };
-                                } else if (name.equals("method")) {
-                                    return new AnnotationVisitor(ASM9) {
-                                        @Override
-                                        public void visit(String name, Object valueraw) {
-                                            var value = (String) valueraw;
-                                            var methods = runtimeNode.methods;
-
-                                            if (value.contains("(")) {
-                                                // Name + Signature
-                                                int injected = 0;
-
-                                                for (var m : methods) {
-                                                    if ((m.name + m.desc).equals(value)) {
-                                                        if (targetedMethods.contains(m))
-                                                            throw new MixinIssue("Method '%s' specified twice in a single injection  (mixin: %s)".formatted(value, mixinClassName));
-
-                                                        targetedMethods.add(m);
-                                                        injected++;
-                                                    }
-                                                }
-
-                                                if (injected < config.injectors().defaultRequire())
-                                                    throw new MixinIssue("Not enough injections for method '%s'; had %d, expected %d  (mixin %s)".formatted(value, injected, config.injectors().defaultRequire(), mixinClassName));
-                                            } else {
-                                                // Name-only
-                                                for (var m : methods) {
-                                                    if (m.name.equals(value)) {
-                                                        var sign = value + m.desc;
-                                                        if (targetedMethods.contains(m))
-                                                            throw new MixinIssue("Method '%s' specified twice in a single injection  (mixin: %s)".formatted(sign, mixinClassName));
-
-                                                        targetedMethods.add(m);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    };
-                                } else {
-                                    throw new MixinIssue("Unimplemented property @Inject(%s = ...)".formatted(name));
-                                }
-                            }
-
-                            @Override
-                            public void visitEnum(String name, String descriptor, String value) {
-                                throw new MixinIssue("Unimplemented property @Inject(%s = %s)".formatted(name, value));
-                            }
-
-                            @Override
-                            public AnnotationVisitor visitAnnotation(String name, String descriptor) {
-                                throw new MixinIssue("Unimplemented property @Inject(%s = ...)".formatted(name));
-                            }
-                        });
+                        a.accept(new MyAnnotationVisitor(atpoint, method, targetedMethods));
 
                         if (targetedMethods.isEmpty())
                             throw new MixinIssue("No targeted methods  (mixin: %s)".formatted(mixinClassName));
 
-                        for (String at : atpoint) {
+                        var callbacks = new Callbacks(runtimeClassName);
+
+                        for (AtPoint at : atpoint) {
                             targetedMethods.forEach(m -> {
-                                if (at.equals("HEAD")) {
-                                    m.maxLocals += 2;
-                                    m.maxStack += 2;
-                                    m.instructions.insert(voidCI(method, 1));
-                                } else if (at.equals("RETURN")) {
-                                    var copy = new InsnList();
-
-                                    for (var ins : m.instructions) {
-                                        if (ins.getOpcode() == RETURN) {
-                                            m.maxLocals += 2;
-                                            m.maxStack += 2;
-
-                                            copy.add(voidCI(method, m.maxLocals - 2));
-                                        }
-
-                                        copy.add(ins);
-                                    }
-
-                                    m.instructions = copy;
-                                } else if (at.equals("TAIL")) {
-                                    AbstractInsnNode lastReturn = null;
-
-                                    for (var ins : m.instructions)
-                                        if (ins.getOpcode() == RETURN)
-                                            lastReturn = ins;
-
-                                    assert lastReturn != null;
-
-                                    m.maxLocals += 2;
-                                    m.maxStack += 2;
-
-                                    var copy = new InsnList();
-
-                                    for (var ins : m.instructions) {
-                                        if (ins == lastReturn)
-                                            copy.add(voidCI(method, m.maxLocals - 2));
-
-                                        copy.add(ins);
-                                    }
-
-                                    m.instructions = copy;
-                                }
+                                at.apply(new ApplyParams(method, m, callbacks));
                             });
                         }
 
@@ -361,31 +231,6 @@ public class Transformer {
         }
     }
 
-    protected InsnList voidCI(MethodNode method, final int varIndex) {
-        return new InsnList() {{
-            // creating the CallbackInfo object
-            add(new TypeInsnNode(NEW, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo"));
-            add(new InsnNode(DUP));
-            add(new MethodInsnNode(INVOKESPECIAL, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo", "<init>", "()V"));
-            add(new VarInsnNode(ASTORE, varIndex));
-            // calling the mixin method
-            add(new VarInsnNode(ALOAD, 0));
-            add(new VarInsnNode(ALOAD, varIndex));
-            add(new MethodInsnNode(INVOKEVIRTUAL, runtimeClassName, method.name, method.desc));
-            // returning if cancelled
-            add(new VarInsnNode(ALOAD, varIndex));
-            add(new MethodInsnNode(INVOKEVIRTUAL, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo", "isCancelled", "()Z", false));
-
-            var label = new LabelNode();
-
-            add(new JumpInsnNode(IFEQ, label));
-            add(new InsnNode(RETURN));
-
-            add(label);
-            add(new FrameNode(F_APPEND, varIndex, new Object[]{"org/spongepowered/asm/mixin/injection/callback/CallbackInfo"}, 0, new Object[]{}));
-        }};
-    }
-
     public String transformType(String jvmType) {
         return new TypeTransformer(jvmType) {
             @Override
@@ -393,5 +238,121 @@ public class Transformer {
                 return literal.equals(Transformer.this.mixinClassName) ? runtimeClassName : literal;
             }
         }.get();
+    }
+
+    private class MyAnnotationVisitor extends AnnotationVisitor {
+        private final ArrayList<AtPoint> atpoint;
+        private final MethodNode method;
+        private final ArrayList<MethodNode> targetedMethods;
+
+        public MyAnnotationVisitor(ArrayList<AtPoint> atpoint, MethodNode method, ArrayList<MethodNode> targetedMethods) {
+            super(ASM9);
+            this.atpoint = atpoint;
+            this.method = method;
+            this.targetedMethods = targetedMethods;
+        }
+
+        @Override
+        public void visit(String name, Object value) {
+            throw new MixinIssue("Unimplemented property @Inject(%s = %s)".formatted(name, value));
+        }
+
+        @Override
+        public AnnotationVisitor visitArray(String name) {
+            if (name.equals("at")) {
+                return new AnnotationVisitor(ASM9) {
+                    @Override
+                    public AnnotationVisitor visitAnnotation(String name, String descriptor) {
+                        return new AnnotationVisitor(ASM9) {
+                            private AtPoint point;
+
+                            @Override
+                            public void visit(String name, Object value) {
+                                if (name.equals("value")) {
+                                    if (atpoints.containsKey(value)) {
+                                        point = atpoints.get(value).get();
+                                        point.check(method);
+
+                                        atpoint.add(point);
+                                    } else {
+                                        throw new MixinIssue("Unimplemented property atpoint '%s'  (mixin: %s)");
+                                    }
+                                } else {
+                                    if (point == null)
+                                        throw new MixinIssue("Uninitialized @At value, cannot specify properties");
+
+                                    if (!point.setProperty(name, value))
+                                        throw new MixinIssue("Unused property @At(%s = %s)".formatted(name, value));
+                                }
+                            }
+
+                            @Override
+                            public AnnotationVisitor visitArray(String name) {
+                                throw new MixinIssue("Unimplemented property @At(%s = ...)".formatted(name));
+                            }
+
+                            @Override
+                            public void visitEnum(String name, String descriptor, String value) {
+                                throw new MixinIssue("Unimplemented property @At(%s = %s)".formatted(name, value));
+                            }
+
+                            @Override
+                            public AnnotationVisitor visitAnnotation(String name, String descriptor) {
+                                throw new MixinIssue("Unimplemented property @At(%s = ...)".formatted(name));
+                            }
+                        };
+                    }
+                };
+            } else if (name.equals("method")) {
+                return new AnnotationVisitor(ASM9) {
+                    @Override
+                    public void visit(String name, Object valueraw) {
+                        var value = (String) valueraw;
+                        var methods = runtimeNode.methods;
+
+                        if (value.contains("(")) {
+                            // Name + Signature
+                            int injected = 0;
+
+                            for (var m : methods) {
+                                if ((m.name + m.desc).equals(value)) {
+                                    if (targetedMethods.contains(m))
+                                        throw new MixinIssue("Method '%s' specified twice in a single injection  (mixin: %s)".formatted(value, mixinClassName));
+
+                                    targetedMethods.add(m);
+                                    injected++;
+                                }
+                            }
+
+                            if (injected < config.injectors().defaultRequire())
+                                throw new MixinIssue("Not enough injections for method '%s'; had %d, expected %d  (mixin %s)".formatted(value, injected, config.injectors().defaultRequire(), mixinClassName));
+                        } else {
+                            // Name-only
+                            for (var m : methods) {
+                                if (m.name.equals(value)) {
+                                    var sign = value + m.desc;
+                                    if (targetedMethods.contains(m))
+                                        throw new MixinIssue("Method '%s' specified twice in a single injection  (mixin: %s)".formatted(sign, mixinClassName));
+
+                                    targetedMethods.add(m);
+                                }
+                            }
+                        }
+                    }
+                };
+            } else {
+                throw new MixinIssue("Unimplemented property @Inject(%s = ...)".formatted(name));
+            }
+        }
+
+        @Override
+        public void visitEnum(String name, String descriptor, String value) {
+            throw new MixinIssue("Unimplemented property @Inject(%s = %s)".formatted(name, value));
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotation(String name, String descriptor) {
+            throw new MixinIssue("Unimplemented property @Inject(%s = ...)".formatted(name));
+        }
     }
 }
