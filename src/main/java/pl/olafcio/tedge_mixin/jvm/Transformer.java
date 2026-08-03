@@ -185,6 +185,11 @@ public class Transformer {
 
                                                             if (!method.desc.endsWith(")V"))
                                                                 throw new MixinIssue("HEAD injection method must return void");
+                                                        } else if (value.equals("RETURN")) {
+                                                            atpoint.add((String) value);
+
+                                                            if (!method.desc.endsWith(")V"))
+                                                                throw new MixinIssue("RETURN injection method must return void");
                                                         } else
                                                             throw new MixinIssue("Unimplemented property atpoint '%s'  (mixin: %s)".formatted(value, mixinClassName));
                                                     } else {
@@ -267,11 +272,26 @@ public class Transformer {
 
                         for (String at : atpoint) {
                             targetedMethods.forEach(m -> {
-                                m.maxLocals += 2;
-                                m.maxStack += 2;
+                                if (at.equals("HEAD")) {
+                                    m.maxLocals += 2;
+                                    m.maxStack += 2;
+                                    m.instructions.insert(voidCI(method, 1));
+                                } else if (at.equals("RETURN")) {
+                                    var copy = new InsnList();
 
-                                if (at.equals("HEAD"))
-                                    m.instructions.insert(voidCI(method));
+                                    for (var ins : m.instructions) {
+                                        if (ins.getOpcode() == RETURN) {
+                                            m.maxLocals += 2;
+                                            m.maxStack += 2;
+
+                                            copy.add(voidCI(method, m.maxLocals - 2));
+                                        }
+
+                                        copy.add(ins);
+                                    }
+
+                                    m.instructions = copy;
+                                }
                             });
                         }
 
@@ -314,19 +334,19 @@ public class Transformer {
         }
     }
 
-    protected InsnList voidCI(MethodNode method) {
+    protected InsnList voidCI(MethodNode method, final int varIndex) {
         return new InsnList() {{
             // creating the CallbackInfo object
             add(new TypeInsnNode(NEW, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo"));
             add(new InsnNode(DUP));
             add(new MethodInsnNode(INVOKESPECIAL, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo", "<init>", "()V"));
-            add(new VarInsnNode(ASTORE, 1));
+            add(new VarInsnNode(ASTORE, varIndex));
             // calling the mixin method
             add(new VarInsnNode(ALOAD, 0));
-            add(new VarInsnNode(ALOAD, 1));
+            add(new VarInsnNode(ALOAD, varIndex));
             add(new MethodInsnNode(INVOKEVIRTUAL, runtimeClassName, method.name, method.desc));
             // returning if cancelled
-            add(new VarInsnNode(ALOAD, 1));
+            add(new VarInsnNode(ALOAD, varIndex));
             add(new MethodInsnNode(INVOKEVIRTUAL, "org/spongepowered/asm/mixin/injection/callback/CallbackInfo", "isCancelled", "()Z", false));
 
             var label = new LabelNode();
@@ -335,7 +355,7 @@ public class Transformer {
             add(new InsnNode(RETURN));
 
             add(label);
-            add(new FrameNode(F_APPEND, 1, new Object[]{"org/spongepowered/asm/mixin/injection/callback/CallbackInfo"}, 0, new Object[]{}));
+            add(new FrameNode(F_APPEND, varIndex, new Object[]{"org/spongepowered/asm/mixin/injection/callback/CallbackInfo"}, 0, new Object[]{}));
         }};
     }
 
