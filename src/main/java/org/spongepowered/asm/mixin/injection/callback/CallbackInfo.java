@@ -12,6 +12,11 @@ public class CallbackInfo {
         this.cancellable = false;
     }
 
+    public CallbackInfo(boolean cancellable) {
+        this.name = null;
+        this.cancellable = cancellable;
+    }
+
     public CallbackInfo(String name, boolean cancellable) {
         this.name = name;
         this.cancellable = cancellable;

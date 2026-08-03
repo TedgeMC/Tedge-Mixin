@@ -30,7 +30,7 @@ public record AtTail() implements AtPoint {
 
         for (var ins : targetMethod.instructions) {
             if (ins == lastReturn)
-                copy.add(params.callbacks().voidCI(mixinMethod, targetMethod.maxLocals - 2));
+                copy.add(params.callbacks().voidCI(mixinMethod, targetMethod.maxLocals - 2, params.cancellable()));
 
             copy.add(ins);
         }

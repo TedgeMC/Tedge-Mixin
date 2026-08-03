@@ -13,6 +13,6 @@ public record AtHead() implements AtPoint {
 
         targetMethod.maxLocals += 2;
         targetMethod.maxStack += 2;
-        targetMethod.instructions.insert(params.callbacks().voidCI(mixinMethod, 1));
+        targetMethod.instructions.insert(params.callbacks().voidCI(mixinMethod, 1, params.cancellable()));
     }
 }

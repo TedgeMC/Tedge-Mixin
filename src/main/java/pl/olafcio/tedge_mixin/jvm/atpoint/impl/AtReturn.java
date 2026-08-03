@@ -21,7 +21,7 @@ public record AtReturn() implements AtPoint {
                 targetMethod.maxLocals += 2;
                 targetMethod.maxStack += 2;
 
-                copy.add(params.callbacks().voidCI(mixinMethod, targetMethod.maxLocals - 2));
+                copy.add(params.callbacks().voidCI(mixinMethod, targetMethod.maxLocals - 2, params.cancellable()));
             }
 
             copy.add(ins);

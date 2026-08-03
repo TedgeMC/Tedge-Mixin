@@ -15,6 +15,7 @@ import pl.olafcio.tedge_mixin.jvm.instance.Callbacks;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -179,7 +180,9 @@ public class Transformer {
                         var targetedMethods = new ArrayList<MethodNode>();
                         var atpoint = new ArrayList<AtPoint>();
 
-                        a.accept(new MyAnnotationVisitor(atpoint, method, targetedMethods));
+                        var cancellable = new AtomicBoolean();
+
+                        a.accept(new MyAnnotationVisitor(atpoint, method, targetedMethods, cancellable));
 
                         if (targetedMethods.isEmpty())
                             throw new MixinIssue("No targeted methods  (mixin: %s)".formatted(mixinClassName));
@@ -188,7 +191,7 @@ public class Transformer {
 
                         for (AtPoint at : atpoint) {
                             targetedMethods.forEach(m -> {
-                                at.apply(new ApplyParams(method, m, callbacks));
+                                at.apply(new ApplyParams(method, m, callbacks, cancellable.get()));
                             });
                         }
 
@@ -244,17 +247,27 @@ public class Transformer {
         private final ArrayList<AtPoint> atpoint;
         private final MethodNode method;
         private final ArrayList<MethodNode> targetedMethods;
+        private final AtomicBoolean cancellable;
 
-        public MyAnnotationVisitor(ArrayList<AtPoint> atpoint, MethodNode method, ArrayList<MethodNode> targetedMethods) {
+        public MyAnnotationVisitor(
+                ArrayList<AtPoint> atpoint,
+                MethodNode method,
+                ArrayList<MethodNode> targetedMethods,
+                AtomicBoolean cancellable
+        ) {
             super(ASM9);
             this.atpoint = atpoint;
             this.method = method;
             this.targetedMethods = targetedMethods;
+            this.cancellable = cancellable;
         }
 
         @Override
         public void visit(String name, Object value) {
-            throw new MixinIssue("Unimplemented property @Inject(%s = %s)".formatted(name, value));
+            if (name.equals("cancellable"))
+                cancellable.setPlain((boolean) value);
+            else
+                throw new MixinIssue("Unimplemented property @Inject(%s = %s)".formatted(name, value));
         }
 
         @Override
