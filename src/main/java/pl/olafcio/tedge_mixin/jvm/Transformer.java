@@ -223,13 +223,13 @@ public class Transformer {
 
                                             if (value.contains("(")) {
                                                 // Name + Signature
-                                                if (targetedMethods.contains(value))
-                                                    throw new MixinIssue("Method '%s' specified twice in a single injection  (mixin: %s)".formatted(value, mixinClassName));
-
                                                 int injected = 0;
 
                                                 for (var m : methods) {
                                                     if ((m.name + m.desc).equals(value)) {
+                                                        if (targetedMethods.contains(m))
+                                                            throw new MixinIssue("Method '%s' specified twice in a single injection  (mixin: %s)".formatted(value, mixinClassName));
+
                                                         targetedMethods.add(m);
                                                         injected++;
                                                     }
@@ -242,7 +242,7 @@ public class Transformer {
                                                 for (var m : methods) {
                                                     if (m.name.equals(value)) {
                                                         var sign = value + m.desc;
-                                                        if (targetedMethods.contains(sign))
+                                                        if (targetedMethods.contains(m))
                                                             throw new MixinIssue("Method '%s' specified twice in a single injection  (mixin: %s)".formatted(sign, mixinClassName));
 
                                                         targetedMethods.add(m);
