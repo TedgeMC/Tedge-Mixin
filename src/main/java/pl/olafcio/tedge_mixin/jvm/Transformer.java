@@ -190,6 +190,11 @@ public class Transformer {
 
                                                             if (!method.desc.endsWith(")V"))
                                                                 throw new MixinIssue("RETURN injection method must return void");
+                                                        } else if (value.equals("TAIL")) {
+                                                            atpoint.add((String) value);
+
+                                                            if (!method.desc.endsWith(")V"))
+                                                                throw new MixinIssue("RETURN injection method must return void");
                                                         } else
                                                             throw new MixinIssue("Unimplemented property atpoint '%s'  (mixin: %s)".formatted(value, mixinClassName));
                                                     } else {
@@ -286,6 +291,28 @@ public class Transformer {
 
                                             copy.add(voidCI(method, m.maxLocals - 2));
                                         }
+
+                                        copy.add(ins);
+                                    }
+
+                                    m.instructions = copy;
+                                } else if (at.equals("TAIL")) {
+                                    AbstractInsnNode lastReturn = null;
+
+                                    for (var ins : m.instructions)
+                                        if (ins.getOpcode() == RETURN)
+                                            lastReturn = ins;
+
+                                    assert lastReturn != null;
+
+                                    m.maxLocals += 2;
+                                    m.maxStack += 2;
+
+                                    var copy = new InsnList();
+
+                                    for (var ins : m.instructions) {
+                                        if (ins == lastReturn)
+                                            copy.add(voidCI(method, m.maxLocals - 2));
 
                                         copy.add(ins);
                                     }
