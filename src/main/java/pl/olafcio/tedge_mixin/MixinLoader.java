@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.lang.instrument.*;
 import java.security.ProtectionDomain;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -294,6 +295,7 @@ public class MixinLoader {
 
     private static Mixin ann_Mixin(AnnotationNode a) {
         var targets = new ArrayList<String>();
+        var redefine = new AtomicBoolean(false);
 
         a.accept(new AnnotationVisitor(ASM9) {
             @Override
@@ -318,10 +320,13 @@ public class MixinLoader {
 
             @Override
             public void visit(String name, Object value) {
-                throw new RuntimeException("Unimplemented support for @Mixin(%s = %s)".formatted(name, value));
+                if (name.equals("redefine"))
+                    redefine.setPlain((boolean) value);
+                else
+                    throw new RuntimeException("Unimplemented support for @Mixin(%s = %s)".formatted(name, value));
             }
         });
 
-        return new Mixin(targets, 0, false);
+        return new Mixin(targets, 0, false, redefine.get());
     }
 }

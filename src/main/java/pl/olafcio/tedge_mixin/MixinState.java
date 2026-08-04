@@ -6,8 +6,11 @@ import pl.olafcio.tedge_mixin.annotation_state.Mixin;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
 import pl.olafcio.tedge_mixin.jvm.Transformer;
 
+import java.io.IOException;
+import java.lang.instrument.ClassDefinition;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
+import java.lang.instrument.UnmodifiableClassException;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 
@@ -51,34 +54,62 @@ public class MixinState {
 
         final int require = mixin.targets().size();
 
-        transformer[0] = new ClassFileTransformer() {
-            @Override
-            public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) {
-                if (mixin.targets().contains(className)) {
-                    IO.println("[TedgeMixin] Injecting into " + className);
+        if (mixin.redefine()) {
+            mixin.targets().forEach(target -> {
+                try {
+                    var klass = Class.forName(target.replace("/", ".").replace("$", "."));
 
-                    var reader = new ClassReader(classfileBuffer);
-                    var node = new ClassNode();
-
-                    reader.accept(node, 0);
-
-                    MixinState.this.transform(className, node);
-
-                    var writer = new ClassWriter(0);
-                    node.accept(writer);
-                    classfileBuffer = writer.toByteArray();
-
-                    if (++registered == require) {
-                        inst.removeTransformer(transformer[0]);
-                        IO.println("[TedgeMixin] Unregistering transformer, all mixins applied");
+                    try (var stream = klass.getResourceAsStream(klass.getSimpleName() + ".class")) {
+                        inst.redefineClasses(new ClassDefinition(klass, transform(
+                                klass.getName().replace(".", "/"),
+                                stream.readAllBytes(),
+                                0,
+                                inst,
+                                null
+                        )));
+                    } catch (IOException | ClassNotFoundException | UnmodifiableClassException e) {
+                        throw new RuntimeException("Failed to redefine class via mixin  (mixin: %s)".formatted(className), e);
                     }
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException("Failed to query class to redefine via mixin  (mixin: %s)".formatted(className), e);
+                }
+            });
+        } else {
+            transformer[0] = new ClassFileTransformer() {
+                @Override
+                public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) {
+                if (mixin.targets().contains(className)) {
+                    classfileBuffer = MixinState.this.transform(className, classfileBuffer, require, inst, transformer);
                 }
 
                 return classfileBuffer;
-            }
-        };
+                }
+            };
 
-        inst.addTransformer(transformer[0]);
+            inst.addTransformer(transformer[0]);
+        }
+    }
+
+    private byte[] transform(String className, byte[] classfileBuffer, int require, Instrumentation inst, ClassFileTransformer[] transformer) {
+        IO.println("[TedgeMixin] Injecting into " + className);
+
+        var reader = new ClassReader(classfileBuffer);
+        var node = new ClassNode();
+
+        reader.accept(node, 0);
+
+        MixinState.this.transform(className, node);
+
+        var writer = new ClassWriter(0);
+        node.accept(writer);
+        classfileBuffer = writer.toByteArray();
+
+        if (++registered == require) {
+            inst.removeTransformer(transformer[0]);
+            IO.println("[TedgeMixin] Unregistering transformer, all mixins applied");
+        }
+
+        return classfileBuffer;
     }
 
     protected void transform(String className, ClassNode classNode) {

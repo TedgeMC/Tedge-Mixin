@@ -13,4 +13,12 @@ public @interface Mixin {
 
     int priority() default 1000;
     boolean remap() default true;
+
+    /**
+     * <b>(Tedge Mixin Addition: <u>Redefinals</u>)</b>
+     * <br><br/>
+     * There's an issue with mixins: Already loaded classes can't be injected into.<br/>
+     * By setting this true, your mixin will redefine the provided class instead of deferring its transformation.
+     */
+    boolean redefine() default false;
 }
