@@ -83,6 +83,15 @@ public class CallbackInfoReturnable<R> extends CallbackInfo {
     public short   getReturnValueS() { if (this.returnValue == null) { return 0;     } return (Short)    this.returnValue; }
     public boolean getReturnValueZ() { if (this.returnValue == null) { return false; } return (Boolean)  this.returnValue; }
 
+    public void setReturnValueB(byte    v) { this.returnValue = (R)Byte     .valueOf(v); }
+    public void setReturnValueC(char    v) { this.returnValue = (R)Character.valueOf(v); }
+    public void setReturnValueD(double  v) { this.returnValue = (R)Double   .valueOf(v); }
+    public void setReturnValueF(float   v) { this.returnValue = (R)Float    .valueOf(v); }
+    public void setReturnValueI(int     v) { this.returnValue = (R)Integer  .valueOf(v); }
+    public void setReturnValueJ(long    v) { this.returnValue = (R)Long     .valueOf(v); }
+    public void setReturnValueS(short   v) { this.returnValue = (R)Short    .valueOf(v); }
+    public void setReturnValueZ(boolean v) { this.returnValue = (R)Boolean  .valueOf(v); }
+
     static String getReturnAccessor(Type returnType) {
         if (returnType.getSort() == Type.OBJECT || returnType.getSort() == Type.ARRAY) {
             return "getReturnValue";

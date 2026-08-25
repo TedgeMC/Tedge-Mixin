@@ -45,12 +45,31 @@ public final class InlineCallbacks extends Callbacks {
                             new TypeReader(method.desc).get().getFirst() instanceof Callable(var args)         &&
                                                          args.get (load) instanceof Literal (var internalName) &&
 
-                            internalName.equals("org/spongepowered/asm/mixin/injection/callback/CallbackInfo")
+                            (internalName.equals("org/spongepowered/asm/mixin/injection/callback/CallbackInfo") ||
+                             internalName.equals("org/spongepowered/asm/mixin/injection/callback/CallbackInfoReturnable"))
                     ) {
                         remove(getLast());
 
                         if (method.name.equals("cancel"))
                             add(new InsnNode(RETURN));
+                        else if (method.name.equals("setReturnValue"))
+                            add(new InsnNode(ARETURN));
+                        else if (method.name.equals("setReturnValueB"))
+                            add(new InsnNode(IRETURN));
+                        else if (method.name.equals("setReturnValueC"))
+                            add(new InsnNode(IRETURN));
+                        else if (method.name.equals("setReturnValueD"))
+                            add(new InsnNode(DRETURN));
+                        else if (method.name.equals("setReturnValueF"))
+                            add(new InsnNode(FRETURN));
+                        else if (method.name.equals("setReturnValueI"))
+                            add(new InsnNode(IRETURN));
+                        else if (method.name.equals("setReturnValueJ"))
+                            add(new InsnNode(LRETURN));
+                        else if (method.name.equals("setReturnValueS"))
+                            add(new InsnNode(IRETURN));
+                        else if (method.name.equals("setReturnValueZ"))
+                            add(new InsnNode(IRETURN));
                         else if (method.name.equals("isCancelled"))
                             add(new LdcInsnNode(0));  // 0=false
                         else if (method.name.equals("isCancellable"))
