@@ -11,6 +11,8 @@ import pl.olafcio.tedge_mixin.jvm.atpoint.impl.AtReturn;
 import pl.olafcio.tedge_mixin.jvm.atpoint.impl.AtTail;
 import pl.olafcio.tedge_mixin.jvm.instance.ApplyParams;
 import pl.olafcio.tedge_mixin.jvm.instance.Callbacks;
+import pl.olafcio.tedge_mixin.jvm.instance.callback.InlineCallbacks;
+import pl.olafcio.tedge_mixin.jvm.instance.callback.StandardCallbacks;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -174,6 +176,7 @@ public class Transformer {
 
             transformInstructions(method, shadowedFields, prefix, shadowedMethods);
 
+        addMethod:
             if (method.visibleAnnotations != null) {
                 for (var a : method.visibleAnnotations) {
                     if (a.desc.equals("Lorg/spongepowered/asm/mixin/injection/Inject;")) {
@@ -187,7 +190,7 @@ public class Transformer {
                         if (targetedMethods.isEmpty())
                             throw new MixinIssue("No targeted methods  (mixin: %s)".formatted(mixinClassName));
 
-                        var callbacks = new Callbacks(runtimeClassName);
+                        var callbacks = new StandardCallbacks(runtimeClassName);
 
                         for (AtPoint at : atpoint) {
                             targetedMethods.forEach(m -> {
@@ -196,6 +199,26 @@ public class Transformer {
                         }
 
                         break;
+                    } else if (a.desc.equals("Lpl/olafcio/tedge_mixin/injector/InjectInline;")) {
+                        var targetedMethods = new ArrayList<MethodNode>();
+                        var atpoint = new ArrayList<AtPoint>();
+
+                        var cancellable = new AtomicBoolean();
+
+                        a.accept(new MyAnnotationVisitor(atpoint, method, targetedMethods, cancellable));
+
+                        if (targetedMethods.isEmpty())
+                            throw new MixinIssue("No targeted methods  (mixin: %s)".formatted(mixinClassName));
+
+                        var callbacks = new InlineCallbacks(runtimeClassName);
+
+                        for (AtPoint at : atpoint) {
+                            targetedMethods.forEach(m -> {
+                                at.apply(new ApplyParams(method, m, callbacks, cancellable.get()));
+                            });
+                        }
+
+                        break addMethod;
                     }
                 }
 

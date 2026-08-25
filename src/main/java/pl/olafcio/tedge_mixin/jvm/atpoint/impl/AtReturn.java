@@ -18,10 +18,7 @@ public record AtReturn() implements AtPoint {
 
         for (var ins : targetMethod.instructions) {
             if (ins.getOpcode() == RETURN) {
-                targetMethod.maxLocals += 2;
-                targetMethod.maxStack += 2;
-
-                copy.add(params.callbacks().voidCI(mixinMethod, targetMethod.maxLocals - 2, params.cancellable()));
+                copy.add(params.callbacks().voidCI(mixinMethod, targetMethod.maxLocals - 2, params.cancellable(), targetMethod));
             }
 
             copy.add(ins);

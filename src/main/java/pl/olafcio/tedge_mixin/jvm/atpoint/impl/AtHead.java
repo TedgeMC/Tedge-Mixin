@@ -11,8 +11,6 @@ public record AtHead() implements AtPoint {
         var targetMethod = params.targetMethod();
         var mixinMethod = params.mixinMethod();
 
-        targetMethod.maxLocals += 2;
-        targetMethod.maxStack += 2;
-        targetMethod.instructions.insert(params.callbacks().voidCI(mixinMethod, 1, params.cancellable()));
+        targetMethod.instructions.insert(params.callbacks().voidCI(mixinMethod, 1, params.cancellable(), targetMethod));
     }
 }
