@@ -4,24 +4,25 @@ import org.objectweb.asm.*;
 import org.objectweb.asm.tree.*;
 import pl.olafcio.tedge_mixin.annotation_state.Mixin;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
+import pl.olafcio.tedge_mixin.extension.Extension;
 import pl.olafcio.tedge_mixin.jvm.Transformer;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
-import java.util.ArrayList;
-
-import static org.objectweb.asm.Opcodes.ASM9;
+import java.util.List;
 
 public class MixinState {
     protected final String className;
     protected final ClassNode node;
     protected final MixinConfig config;
+    protected final List<Extension> extensions;
 
-    public MixinState(String className, ClassNode node, MixinConfig config) {
+    public MixinState(String className, ClassNode node, MixinConfig config, List<Extension> extensions) {
         this.className = className;
         this.node = node;
         this.config = config;
+        this.extensions = extensions;
     }
 
     protected Mixin mixin;
@@ -83,6 +84,41 @@ public class MixinState {
 
     protected void transform(String className, ClassNode classNode) {
         try {
+            for (var ext : extensions)
+                if (!ext.shouldApply(config, node, classNode, this.className, className))
+                    return;
+        } catch (Exception e) {
+            IO.println("[TedgeMixin] -----------------------------------");
+            IO.println("[TedgeMixin] -----------------------------------");
+            IO.println("[TedgeMixin] !! INJECTION CHECK FIRING ERROR !!");
+            IO.println("[TedgeMixin] -----------------------------------");
+            IO.println("[TedgeMixin] -----------------------------------");
+            IO.println();
+
+            e.printStackTrace();
+
+            IO.println();
+            System.exit(1);
+        }
+
+        try {
+            for (var ext : extensions)
+                ext.onBeforeTargetApply(config, node, classNode, this.className, className);
+        } catch (Exception e) {
+            IO.println("[TedgeMixin] --------------------------------------");
+            IO.println("[TedgeMixin] --------------------------------------");
+            IO.println("[TedgeMixin] !! INJECTION PRE-APPLY FIRING ERROR !!");
+            IO.println("[TedgeMixin] --------------------------------------");
+            IO.println("[TedgeMixin] --------------------------------------");
+            IO.println();
+
+            e.printStackTrace();
+
+            IO.println();
+            System.exit(1);
+        }
+
+        try {
             new Transformer(config, node, classNode, this.className, className).transform();
         } catch (Exception e) {
             IO.println("[TedgeMixin] ---------------------");
@@ -90,6 +126,23 @@ public class MixinState {
             IO.println("[TedgeMixin] !! INJECTION ERROR !!");
             IO.println("[TedgeMixin] ---------------------");
             IO.println("[TedgeMixin] ---------------------");
+            IO.println();
+
+            e.printStackTrace();
+
+            IO.println();
+            System.exit(1);
+        }
+
+        try {
+            for (var ext : extensions)
+                ext.onAfterTargetApply(config, node, classNode, this.className, className);
+        } catch (Exception e) {
+            IO.println("[TedgeMixin] ---------------------------------------");
+            IO.println("[TedgeMixin] ---------------------------------------");
+            IO.println("[TedgeMixin] !! INJECTION POST-APPLY FIRING ERROR !!");
+            IO.println("[TedgeMixin] ---------------------------------------");
+            IO.println("[TedgeMixin] ---------------------------------------");
             IO.println();
 
             e.printStackTrace();

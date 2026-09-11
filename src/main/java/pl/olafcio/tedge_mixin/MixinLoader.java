@@ -3,6 +3,7 @@ package pl.olafcio.tedge_mixin;
 import org.objectweb.asm.*;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import pl.olafcio.tedge_mixin.annotation_state.Mixin;
 import pl.olafcio.tedge_mixin.config.MixinConfig;
 import pl.olafcio.tedge_mixin.extension.Extension;
@@ -11,6 +12,10 @@ import pl.olafcio.tedge_mixin.jvm.Transformer;
 
 import java.io.IOException;
 import java.lang.instrument.*;
+import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.security.ProtectionDomain;
 import java.util.*;
 import java.util.jar.JarFile;
@@ -81,10 +86,60 @@ public class MixinLoader {
     }
 
     /**
-     * Initializes transformers to perform the provided injections.<br/>
+     * Initializes transformers to perform the provided injections, and a plugin first if present.<br/>
      * After everything has been transformed, the transformer is unregistered.
      */
     public void addInjections(MixinConfig config, JarFile file, ZipOutputStream output, Environment environment) {
+        if (config.plugin() != null) {
+            var pluginEntry = file.getEntry(config.plugin().replace(".", "/") + ".class");
+            if (pluginEntry == null)
+                throw new RuntimeException("Mixin plugin '%s' not found".formatted(config.plugin()));
+
+            try (var ucl = new URLClassLoader(new URL[]{ URI.create(file.getName()).toURL() })) {
+                var pluginClass = ucl.loadClass(config.plugin());
+                var plugin = (IMixinConfigPlugin) pluginClass.getDeclaredConstructor().newInstance();
+
+                addExtension(new Extension() {
+                    @Override
+                    public void onPreLoad(MixinConfig config) {
+                        plugin.onLoad(config._package());
+                    }
+
+                    @Override
+                    public boolean shouldApply(MixinConfig config, ClassNode mixinNode, ClassNode runtimeNode, String mixinClassName, String runtimeClassName) {
+                        return plugin.shouldApplyMixin(runtimeClassName, mixinClassName);
+                    }
+
+                    @Override
+                    public void onBeforeTargetApply(MixinConfig config, ClassNode mixinNode, ClassNode runtimeNode, String mixinClassName, String runtimeClassName) {
+                        plugin.preApply(runtimeClassName, runtimeNode, mixinClassName, null);
+                    }
+
+                    @Override
+                    public void onAfterTargetApply(MixinConfig config, ClassNode mixinNode, ClassNode runtimeNode, String mixinClassName, String runtimeClassName) {
+                        plugin.postApply(runtimeClassName, runtimeNode, mixinClassName, null);
+                    }
+                });
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to access JAR of mixin plugin", e);
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException("Failed to access class of mixin plugin", e);
+            } catch (InvocationTargetException e) {
+                throw new RuntimeException("Failed to construct mixin plugin/invocation error", e);
+            } catch (InstantiationException e) {
+                throw new RuntimeException("Failed to construct mixin plugin/java error", e);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException("Failed to construct mixin plugin/access error", e);
+            } catch (NoSuchMethodException e) {
+                throw new RuntimeException("Failed to construct mixin plugin/a no-arg constructor isn't defined", e);
+            } catch (ClassCastException e) {
+                throw new RuntimeException("Failed to process mixin plugin/IMixinConfigPlugin isn't implemented", e);
+            }
+        }
+
+        for (var ext : extensions)
+            ext.onPreLoad(config);
+
         var zipEntries = file.entries();
 
         List<String> mixinList;
@@ -191,6 +246,9 @@ public class MixinLoader {
                 }
             }
         }
+
+        for (var ext : extensions)
+            ext.onPostLoad(config);
     }
 
     /** TODO Optimize this crap */
@@ -217,7 +275,7 @@ public class MixinLoader {
         for (var ext : extensions)
             ext.onMixinPreInit(className, node, config);
 
-        var state = new MixinState(className, node, config);
+        var state = new MixinState(className, node, config, extensions);
         state.init(mixin);
 
         for (var ext : extensions)
@@ -294,8 +352,9 @@ public class MixinLoader {
 
     private static Mixin ann_Mixin(AnnotationNode a) {
         var targets = new ArrayList<String>();
+        var visitor = new AnnotationVisitor(ASM9) {
+            String plugin = null;
 
-        a.accept(new AnnotationVisitor(ASM9) {
             @Override
             public AnnotationVisitor visitArray(String name) {
                 var parent = super.visitArray(name);
@@ -318,10 +377,19 @@ public class MixinLoader {
 
             @Override
             public void visit(String name, Object value) {
-                throw new RuntimeException("Unimplemented support for @Mixin(%s = %s)".formatted(name, value));
-            }
-        });
+                if (name.equals("plugin")) {
+                    if (!(value instanceof String str))
+                        throw new RuntimeException("Invalid @Mixin(plugin = %s)".formatted(value));
 
-        return new Mixin(targets, 0, false);
+                    this.plugin = str;
+                } else {
+                    throw new RuntimeException("Unimplemented support for @Mixin(%s = %s)".formatted(name, value));
+                }
+            }
+        };
+
+        a.accept(visitor);
+
+        return new Mixin(targets, 0, false, visitor.plugin);
     }
 }
