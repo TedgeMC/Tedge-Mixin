@@ -1,0 +1,23 @@
+plugins {
+    id 'java'
+}
+
+group = 'pl.olafcio.tedge_mixin'
+version = rootProject.version
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    implementation 'org.ow2.asm:asm:9.10.1'
+    implementation 'org.ow2.asm:asm-tree:9.10.1'
+}
+
+test {
+    useJUnitPlatform()
+}

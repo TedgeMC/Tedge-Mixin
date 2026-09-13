@@ -3,15 +3,35 @@ import java.nio.file.Path
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
+buildscript {
+    repositories {
+        gradlePluginPortal()
+    }
+
+    dependencies {
+        classpath 'com.gradleup.shadow:shadow-gradle-plugin:9.6.1'
+    }
+}
+
 plugins {
     id 'java'
 }
+
+apply plugin: 'com.gradleup.shadow'
 
 group = 'pl.olafcio.tedge_mixin'
 version = project.version
 
 repositories {
     mavenCentral()
+}
+
+shadowJar {
+    configurations = [project.configurations.shadow]
+
+    dependencies {
+        exclude(dependency("org.ow2.asm:.*:.*"))
+    }
 }
 
 dependencies {
@@ -21,6 +41,8 @@ dependencies {
 
     implementation 'org.ow2.asm:asm:9.10.1'
     implementation 'org.ow2.asm:asm-tree:9.10.1'
+
+    implementation(shadow(project(":default")))
 }
 
 test {
@@ -30,7 +52,7 @@ test {
 tasks.register("install") {
     dependsOn build
     doLast {
-        var tedgeMixin = jar.archiveFile.get().getAsFile()
+        var tedgeMixin = shadowJar.archiveFile.get().getAsFile()
 
         File tedgeLoader
 
